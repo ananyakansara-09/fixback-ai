@@ -86,7 +86,7 @@ export function Header({ title, onMenuClick }: HeaderProps) {
                     >
                       <p className="truncate text-sm text-slate-100">{item.title}</p>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        {item.id} · {formatRelative(item.createdAt)}
+                        {item.incident_code || item.id} · {formatRelative(item.createdAt || item.created_at || new Date().toISOString())}
                       </p>
                     </Link>
                   </li>

@@ -1,6 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BookCheck, CheckCircle2, ListChecks, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BookCheck,
+  CheckCircle2,
+  ListChecks,
+  RefreshCw,
+  ShieldCheck,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { DiagnosisCard } from '@/components/DiagnosisCard';
@@ -58,7 +66,12 @@ export default function IncidentDetails() {
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="space-y-6 xl:col-span-2">
             <CurrentIncident incident={data} />
-            {data.diagnosis && <DiagnosisCard diagnosis={data.diagnosis} similarity={data.recalledMemories[0]?.matchScore} />}
+            {data.diagnosis && (
+              <DiagnosisCard
+                diagnosis={data.diagnosis}
+                similarity={data.recalledMemories[0]?.matchScore}
+              />
+            )}
             <RelevantMemories incident={data} />
           </div>
 
@@ -73,14 +86,18 @@ export default function IncidentDetails() {
 }
 
 function CurrentIncident({ incident }: { incident: Incident }) {
+  const envLabel =
+    ENVIRONMENT_LABELS[incident.environment as keyof typeof ENVIRONMENT_LABELS] ??
+    incident.environment;
+
   return (
     <section className="rounded-xl border border-edge bg-panel p-5 shadow-card">
       <h2 className="text-xs font-medium uppercase tracking-wider text-slate-500">Current incident</h2>
       <h3 className="mt-2 text-lg font-semibold text-slate-50">{incident.title}</h3>
       <dl className="mt-4 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-        <Meta label="Incident ID" value={incident.id} mono />
+        <Meta label="Incident Code" value={incident.incident_code || incident.id} mono />
         <Meta label="Service" value={incident.service} mono />
-        <Meta label="Environment" value={ENVIRONMENT_LABELS[incident.environment]} />
+        <Meta label="Environment" value={envLabel} />
         <Meta label="Submitted" value={formatDateTime(incident.createdAt)} />
       </dl>
       <div className="mt-5 space-y-3">
@@ -88,12 +105,14 @@ function CurrentIncident({ incident }: { incident: Incident }) {
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Error</p>
           <p className="mt-1 rounded-lg bg-rose-500/5 px-3 py-2 font-mono text-sm text-rose-200">{incident.errorMessage}</p>
         </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Logs</p>
-          <pre className="scrollbar-thin mt-1 max-h-56 overflow-auto rounded-lg border border-edge bg-canvas p-3 font-mono text-xs leading-relaxed text-slate-300">
-            {incident.logs}
-          </pre>
-        </div>
+        {incident.logs && (
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Logs</p>
+            <pre className="scrollbar-thin mt-1 max-h-56 overflow-auto rounded-lg border border-edge bg-canvas p-3 font-mono text-xs leading-relaxed text-slate-300">
+              {incident.logs}
+            </pre>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -117,7 +136,10 @@ function RelevantMemories({ incident }: { incident: Incident }) {
       </div>
       <p className="mb-4 text-sm text-slate-400">Verified history from past incidents. These are confirmed facts from your team, not AI guesses.</p>
       {incident.recalledMemories.length === 0 ? (
-        <EmptyState title="No similar incidents in memory" description="This looks new to FixBack. Confirm the root cause once you find it, and future incidents will benefit." />
+        <EmptyState
+          title="No similar incidents in memory"
+          description="This looks new to FixBack. Confirm the root cause once you find it, and future incidents will benefit."
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {incident.recalledMemories.map((memory) => (
@@ -169,32 +191,107 @@ function ResolutionPanel({ incident, onSaved }: { incident: Incident; onSaved: (
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  if (incident.resolution) {
+  const hasConfirmedResolution =
+    incident.status === 'resolved' || (Boolean(incident.root_cause) && Boolean(incident.resolution));
+
+  const rootCauseStr =
+    typeof incident.root_cause === 'string'
+      ? incident.root_cause
+      : typeof incident.resolution === 'object' && incident.resolution
+      ? incident.resolution.confirmedRootCause
+      : '';
+
+  const resolutionStr =
+    typeof incident.resolution === 'string'
+      ? incident.resolution
+      : typeof incident.resolution === 'object' && incident.resolution
+      ? incident.resolution.verifiedResolution
+      : '';
+
+  const handleRetryRetention = async () => {
+    if (!rootCauseStr || !resolutionStr) return;
+    setSaving(true);
+    try {
+      const res = await confirmResolution(incident.id, {
+        confirmedRootCause: rootCauseStr,
+        verifiedResolution: resolutionStr,
+      });
+      if (res.memoryRetained) {
+        toast.success('Resolution successfully retained in Hindsight Cloud');
+        onSaved();
+      } else {
+        toast.error('Retention failed. Check Hindsight Cloud service readiness.');
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (hasConfirmedResolution) {
+    const isRetained = Boolean(incident.memory_retained);
+    const confirmedTime = incident.resolved_at || incident.updated_at || new Date().toISOString();
+
     return (
-      <section className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.04] p-5 shadow-card">
-        <div className="flex items-center gap-2 text-emerald-300">
-          <CheckCircle2 className="h-4 w-4" aria-hidden />
-          <h2 className="text-base font-semibold">Resolution confirmed</h2>
+      <section
+        className={`rounded-xl border p-5 shadow-card ${
+          isRetained
+            ? 'border-emerald-400/25 bg-emerald-500/[0.04]'
+            : 'border-amber-400/30 bg-amber-500/[0.04]'
+        }`}
+      >
+        <div className={`flex items-center gap-2 ${isRetained ? 'text-emerald-300' : 'text-amber-300'}`}>
+          {isRetained ? (
+            <CheckCircle2 className="h-4 w-4" aria-hidden />
+          ) : (
+            <AlertTriangle className="h-4 w-4" aria-hidden />
+          )}
+          <h2 className="text-base font-semibold">
+            {isRetained
+              ? 'Resolution Confirmed & Retained in Hindsight'
+              : 'Resolution Confirmed in DB (Memory Not Retained)'}
+          </h2>
         </div>
-        <p className="mt-1 text-xs text-slate-500">Saved to engineering memory on {formatDateTime(incident.resolution.confirmedAt)}</p>
+
+        <p className="mt-1 text-xs text-slate-500">
+          {isRetained
+            ? `Verified and saved to engineering memory on ${formatDateTime(confirmedTime)}`
+            : 'Incident is marked resolved in PostgreSQL, but Hindsight cloud retention failed or was skipped.'}
+        </p>
+
         <div className="mt-4 space-y-4 text-sm">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Confirmed root cause</p>
-            <p className="mt-1 leading-relaxed text-slate-100">{incident.resolution.confirmedRootCause}</p>
+            <p className="mt-1 leading-relaxed text-slate-100">{rootCauseStr}</p>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Verified resolution</p>
-            <p className="mt-1 leading-relaxed text-slate-100">{incident.resolution.verifiedResolution}</p>
+            <p className="mt-1 leading-relaxed text-slate-100">{resolutionStr}</p>
           </div>
         </div>
+
+        {!isRetained && (
+          <div className="mt-5 border-t border-edge pt-3">
+            <button
+              type="button"
+              onClick={handleRetryRetention}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-violet-500 px-3.5 py-2 text-xs font-medium text-white shadow-glow transition hover:bg-violet-400 disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${saving ? 'animate-spin' : ''}`} aria-hidden />
+              {saving ? 'Retrying retention...' : 'Retry Hindsight Retention'}
+            </button>
+          </div>
+        )}
       </section>
     );
   }
 
   const validate = () => {
     const next: typeof errors = {};
-    if (rootCause.trim().length < 10) next.rootCause = 'Describe the confirmed root cause (at least 10 characters).';
-    if (resolution.trim().length < 10) next.resolution = 'Describe what fixed it (at least 10 characters).';
+    if (rootCause.trim().length < 3) next.rootCause = 'Describe the confirmed root cause (at least 3 characters).';
+    if (resolution.trim().length < 3) next.resolution = 'Describe what fixed it (at least 3 characters).';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -207,8 +304,21 @@ function ResolutionPanel({ incident, onSaved }: { incident: Incident; onSaved: (
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      await confirmResolution(incident.id, { confirmedRootCause: rootCause.trim(), verifiedResolution: resolution.trim() });
-      toast.success('Resolution saved to memory', { description: `${incident.id} will inform future incidents.` });
+      const res = await confirmResolution(incident.id, {
+        confirmedRootCause: rootCause.trim(),
+        verifiedResolution: resolution.trim(),
+      });
+
+      if (res.memoryRetained) {
+        toast.success('Resolution saved to engineering memory', {
+          description: `${incident.incident_code || incident.id} will inform future incidents.`,
+        });
+      } else {
+        toast.warning('Resolution saved in database, but Hindsight retention failed or was skipped.', {
+          description: 'You can retry memory retention at any time.',
+        });
+      }
+
       setModalOpen(false);
       onSaved();
     } catch (error) {
@@ -233,12 +343,24 @@ function ResolutionPanel({ incident, onSaved }: { incident: Incident; onSaved: (
       <form onSubmit={handleReview} noValidate className="mt-5 space-y-4">
         <label className="block text-sm font-medium text-slate-200">
           Confirmed Root Cause
-          <textarea value={rootCause} onChange={(e) => setRootCause(e.target.value)} rows={3} className={fieldClass(errors.rootCause)} placeholder="What was actually causing the failure?" />
+          <textarea
+            value={rootCause}
+            onChange={(e) => setRootCause(e.target.value)}
+            rows={3}
+            className={fieldClass(errors.rootCause)}
+            placeholder="What was actually causing the failure?"
+          />
           {errors.rootCause && <span className="mt-1 block text-xs text-rose-300">{errors.rootCause}</span>}
         </label>
         <label className="block text-sm font-medium text-slate-200">
           Verified Resolution
-          <textarea value={resolution} onChange={(e) => setResolution(e.target.value)} rows={3} className={fieldClass(errors.resolution)} placeholder="What fixed it, and how was it verified?" />
+          <textarea
+            value={resolution}
+            onChange={(e) => setResolution(e.target.value)}
+            rows={3}
+            className={fieldClass(errors.resolution)}
+            placeholder="What fixed it, and how was it verified?"
+          />
           {errors.resolution && <span className="mt-1 block text-xs text-rose-300">{errors.resolution}</span>}
         </label>
         <button

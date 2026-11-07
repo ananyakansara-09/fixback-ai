@@ -89,6 +89,9 @@ export default function Settings() {
             <>
               <ul className="space-y-3">
                 <ConnectionRow connection={health.data.connections.backend} />
+                {health.data.connections.database && (
+                  <ConnectionRow connection={health.data.connections.database} />
+                )}
                 <ConnectionRow connection={health.data.connections.hindsight} />
                 <ConnectionRow connection={health.data.connections.groq} />
               </ul>
@@ -113,21 +116,37 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
 }
 
 function ConnectionRow({ connection }: { connection: ServiceConnection }) {
-  const connected = connection.state === 'connected';
+  const isConnected = connection.state === 'connected';
+  const isDegraded = connection.state === 'degraded';
+
   return (
     <li className="flex items-center gap-3 rounded-lg border border-edge p-3.5">
-      {connected ? (
+      {isConnected ? (
         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-      ) : (
+      ) : isDegraded ? (
         <CircleAlert className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+      ) : (
+        <CircleAlert className="h-4 w-4 shrink-0 text-rose-400" aria-hidden />
       )}
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-slate-100">{connection.name}</p>
         <p className="truncate text-xs text-slate-500">{connection.detail}</p>
       </div>
       <div className="text-right">
-        <p className={`text-xs font-medium ${connected ? 'text-emerald-300' : 'text-amber-300'}`}>{connected ? 'Connected' : 'Degraded'}</p>
-        {connection.latencyMs !== null && <p className="font-mono text-[11px] text-slate-500">{connection.latencyMs} ms</p>}
+        <p
+          className={`text-xs font-medium ${
+            isConnected
+              ? 'text-emerald-300'
+              : isDegraded
+              ? 'text-amber-300'
+              : 'text-rose-300'
+          }`}
+        >
+          {isConnected ? 'Connected' : isDegraded ? 'Degraded' : 'Disconnected'}
+        </p>
+        {connection.latencyMs !== null && (
+          <p className="font-mono text-[11px] text-slate-500">{connection.latencyMs} ms</p>
+        )}
       </div>
     </li>
   );

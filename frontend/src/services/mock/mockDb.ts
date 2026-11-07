@@ -115,8 +115,14 @@ export function confirmResolution(id: string, payload: ConfirmResolutionPayload)
     service: incident.service,
     environment: incident.environment,
     historicalError: incident.errorMessage,
-    confirmedRootCause: incident.resolution.confirmedRootCause,
-    verifiedResolution: incident.resolution.verifiedResolution,
+    confirmedRootCause:
+      typeof incident.resolution === 'object' && incident.resolution
+        ? incident.resolution.confirmedRootCause
+        : payload.confirmedRootCause,
+    verifiedResolution:
+      typeof incident.resolution === 'object' && incident.resolution
+        ? incident.resolution.verifiedResolution
+        : payload.verifiedResolution,
     type: 'incident_resolution',
     retainedAt: timestamp,
     recallCount: 0,
@@ -149,7 +155,12 @@ function incidentActivity(): DailyIncidentActivity[] {
     return {
       date: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       submitted: db.incidents.filter((item) => new Date(item.createdAt).toDateString() === key).length,
-      resolved: db.incidents.filter((item) => item.resolution && new Date(item.resolution.confirmedAt).toDateString() === key).length,
+      resolved: db.incidents.filter(
+        (item) =>
+          item.resolution &&
+          typeof item.resolution === 'object' &&
+          new Date(item.resolution.confirmedAt).toDateString() === key
+      ).length,
     };
   });
 }

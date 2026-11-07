@@ -1,5 +1,60 @@
-import type { Incident } from '@/types/incident';
+import type { Incident, IncidentResponse } from '@/types/incident';
 import type { Memory } from '@/types/memory';
+
+/* -------------------------------------------------------------
+ * Backend Schema Matching Types
+ * ----------------------------------------------------------- */
+
+export interface IncidentOverTimeItem {
+  date: string;
+  count: number;
+}
+
+export interface ActivityItem {
+  id: string;
+  incident_code: string;
+  title: string;
+  service: string;
+  action: string;
+  timestamp: string;
+  details?: string | null;
+}
+
+export interface DashboardStatsData {
+  total_incidents: number;
+  resolved_incidents: number;
+  pending_incidents: number;
+  analyzing_incidents: number;
+  successfully_retained_memories: number;
+  incidents_by_status: Record<string, number>;
+  incidents_over_time: IncidentOverTimeItem[];
+  recent_incidents: IncidentResponse[];
+  recent_activity: ActivityItem[];
+}
+
+export interface BackendHealthData {
+  status: 'healthy' | 'degraded';
+  database: {
+    connected: boolean;
+    message: string;
+  };
+  hindsight: {
+    configured: boolean;
+    ready: boolean;
+    bank_id: string;
+    message: string;
+  };
+  groq: {
+    configured: boolean;
+    ready: boolean;
+    model?: string;
+    message: string;
+  };
+}
+
+/* -------------------------------------------------------------
+ * UI Types & Frontend View Models
+ * ----------------------------------------------------------- */
 
 export type ActivityType =
   | 'incident_submitted'
@@ -28,6 +83,7 @@ export interface DashboardStats {
   resolvedIncidents: number;
   pendingInvestigation: number;
   memoriesStored: number;
+  analyzingIncidents?: number;
 }
 
 export interface DashboardPayload {
@@ -57,6 +113,7 @@ export interface SystemHealth {
   checkedAt: string;
   connections: {
     backend: ServiceConnection;
+    database?: ServiceConnection;
     hindsight: ServiceConnection;
     groq: ServiceConnection;
   };

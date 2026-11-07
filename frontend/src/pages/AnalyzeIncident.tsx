@@ -32,10 +32,9 @@ const SERVICE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 function validateIncident(form: IncidentInput): FormErrors {
   const errors: FormErrors = {};
-  if (form.title.trim().length < 8) errors.title = 'Give the incident a title of at least 8 characters.';
-  if (!SERVICE_PATTERN.test(form.service.trim())) errors.service = 'Use lowercase letters, numbers, and hyphens (e.g. payment-api).';
-  if (form.errorMessage.trim().length < 10) errors.errorMessage = 'Paste the error message (at least 10 characters).';
-  if (form.logs.trim().length < 20) errors.logs = 'Include the relevant log lines (at least 20 characters).';
+  if (form.title.trim().length < 3) errors.title = 'Title must be at least 3 characters.';
+  if (!form.service.trim()) errors.service = 'Service name is required.';
+  if (form.errorMessage.trim().length < 3) errors.errorMessage = 'Paste the error message (at least 3 characters).';
   return errors;
 }
 
@@ -67,7 +66,7 @@ export default function AnalyzeIncident() {
         errorMessage: form.errorMessage.trim(),
         logs: form.logs.trim(),
       });
-      toast.success(`${incident.id} analyzed`, { description: 'Review the diagnosis and relevant memories.' });
+      toast.success(`${incident.incident_code || incident.id} analyzed`, { description: 'Review the diagnosis and relevant memories.' });
       navigate(`/incidents/${incident.id}`);
     } catch (error) {
       setSubmitError(getErrorMessage(error));
@@ -116,7 +115,7 @@ export default function AnalyzeIncident() {
           </Field>
           <Field label="Environment">
             <select value={form.environment} onChange={(e) => update('environment', e.target.value as Environment)} className={inputClass()}>
-              {(Object.keys(ENVIRONMENT_LABELS) as Environment[]).map((env) => (
+              {(Object.keys(ENVIRONMENT_LABELS) as (keyof typeof ENVIRONMENT_LABELS)[]).map((env) => (
                 <option key={env} value={env}>
                   {ENVIRONMENT_LABELS[env]}
                 </option>

@@ -27,16 +27,20 @@ export function IncidentTable({ incidents }: { incidents: Incident[] }) {
               onClick={() => navigate(`/incidents/${incident.id}`)}
               className="cursor-pointer transition hover:bg-raised/60"
             >
-              <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-400">{incident.id}</td>
+              <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-400">{incident.incident_code || incident.id}</td>
               <td className="max-w-xs px-4 py-3 text-slate-100">
                 <span className="line-clamp-1">{incident.title}</span>
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-300">{incident.service}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-slate-300">{ENVIRONMENT_LABELS[incident.environment]}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-slate-300">
+                {ENVIRONMENT_LABELS[incident.environment as keyof typeof ENVIRONMENT_LABELS] || incident.environment}
+              </td>
               <td className="px-4 py-3">
                 <StatusBadge status={incident.status} />
               </td>
-              <td className="whitespace-nowrap px-4 py-3 text-slate-400">{formatDate(incident.createdAt)}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-slate-400">
+                {formatDate(incident.createdAt || incident.created_at || new Date().toISOString())}
+              </td>
               <td className="px-4 py-3 text-right">
                 <Link
                   to={`/incidents/${incident.id}`}
